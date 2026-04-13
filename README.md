@@ -6,7 +6,7 @@ Devin Bowler · Henry Booth · Giordano Arcieri · Roberto Rubio
 
 ## Overview
 
-This project builds a text analytics pipeline in PySpark that processes a corpus of ~4.5 million words across 5 large text files. We run 5 analytics queries on the data, each implemented two ways — using the **DataFrame API** and **Spark SQL** — to compare how both approaches perform on the same workload.
+This project builds a text analytics pipeline in PySpark that processes a corpus of ~4.5 million words across 5 large text files. We run 5 analytics queries on the data, each implemented two ways, using the **DataFrame API** and **Spark SQL** to compare how both approaches perform on the same workload.
 
 ---
 
@@ -78,4 +78,4 @@ Each query has a `_df` version (DataFrame API) and a `_sql` version (Spark SQL) 
 
 ## Dataset
 
-Five synthetic literary-style text files in `data/`, each modeled after a classic book title (War and Peace, Moby Dick, Les Miserables, Don Quixote, Shakespeare). Total corpus is ~4.55 million words across ~24MB of text. To use real Project Gutenberg books instead, drop plain `.txt` files into `data/` — no code changes needed.
+Five synthetic literary-style text files in `data/`, each modeled after a classic book title (War and Peace, Moby Dick, Les Miserables, Don Quixote, Shakespeare). Total corpus is ~4.55 million words across ~24MB of text.
