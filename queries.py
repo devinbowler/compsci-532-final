@@ -1,5 +1,5 @@
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import col, desc, avg, min as spark_min, max as spark_max, explode, split, udf
+from pyspark.sql import SparkSession, DataFrame, Window
+from pyspark.sql.functions import col, desc, avg, min as spark_min, max as spark_max, explode, split, udf, posexplode, lead, concat_ws, greatest, least
 from pyspark.sql.types import ArrayType, StringType
 
 
@@ -52,28 +52,77 @@ def top_k_word_frequency_sql(spark, k=20):
 
 # query 3: top k most frequent adjacent word pairs per line
 
+#def top_k_word_pairs_df(lines_df, k=20):
+#    return (
+#        lines_df
+#        .select(explode(pairs_udf(split(col("clean_line"), r"\s+"))).alias("pair"))
+#        .filter(col("pair") != "")
+#        .groupBy("pair")
+#        .count()
+#        .orderBy(desc("count"))
+#        .limit(k)
+#    )
 def top_k_word_pairs_df(lines_df, k=20):
+    words = lines_df.select(
+        "source",
+        "clean_line",  # ✅ KEEP THIS
+        posexplode(split(col("clean_line"), r"\s+")).alias("pos", "word")
+    )
+
+    w = Window.partitionBy("source", "clean_line").orderBy("pos")
+
+    pairs = words.withColumn(
+        "next_word", lead("word").over(w)
+    ).filter(col("next_word").isNotNull())
+
+    pairs = pairs.select(
+        concat_ws("|", least("word", "next_word"), greatest("word", "next_word")).alias("pair")
+    )
+
     return (
-        lines_df
-        .select(explode(pairs_udf(split(col("clean_line"), r"\s+"))).alias("pair"))
-        .filter(col("pair") != "")
+        pairs
         .groupBy("pair")
         .count()
-        .orderBy(desc("count"))
+        .orderBy(col("count").desc())
         .limit(k)
     )
 
+#def top_k_word_pairs_sql(spark, lines_df, k=20):
+#    # build the pairs view first since sql can't call the udf directly
+#    pairs_df = lines_df.select(
+#        explode(pairs_udf(split(col("clean_line"), r"\s+"))).alias("pair")
+#    ).filter(col("pair") != "")
+#
+#    pairs_df.createOrReplaceTempView("pairs")
+#
+#    return spark.sql(f"""
+#        SELECT pair, COUNT(*) AS count
+#        FROM pairs
+#        GROUP BY pair
+#        ORDER BY count DESC
+#        LIMIT {k}
+#    """)
 def top_k_word_pairs_sql(spark, lines_df, k=20):
-    # build the pairs view first since sql can't call the udf directly
-    pairs_df = lines_df.select(
-        explode(pairs_udf(split(col("clean_line"), r"\s+"))).alias("pair")
-    ).filter(col("pair") != "")
-
-    pairs_df.createOrReplaceTempView("pairs")
+    lines_df.createOrReplaceTempView("lines")
 
     return spark.sql(f"""
+        WITH words AS (
+            SELECT source, clean_line,
+                   posexplode(split(clean_line, '\\\\s+')) AS (pos, word)
+            FROM lines
+        ),
+        pairs AS (
+            SELECT
+                CASE
+                    WHEN word < lead(word) OVER (PARTITION BY source, clean_line ORDER BY pos)
+                    THEN CONCAT(word, '|', lead(word) OVER (PARTITION BY source, clean_line ORDER BY pos))
+                    ELSE CONCAT(lead(word) OVER (PARTITION BY source, clean_line ORDER BY pos), '|', word)
+                END AS pair
+            FROM words
+        )
         SELECT pair, COUNT(*) AS count
         FROM pairs
+        WHERE pair IS NOT NULL
         GROUP BY pair
         ORDER BY count DESC
         LIMIT {k}

@@ -70,11 +70,14 @@ def register_views(lines_df, words_df, line_stats_df):
 
 # run the full pipeline: load all txt files, clean, tokenize, register views
 def build_pipeline(spark, data_dir, use_cache=False):
-    txt_files = [
-        os.path.join(data_dir, f)
-        for f in os.listdir(data_dir)
-        if f.endswith(".txt") and os.path.getsize(os.path.join(data_dir, f)) > 0
-    ]
+    if os.path.isfile(data_dir):
+        txt_files = [data_dir]
+    else:
+        txt_files = [
+            os.path.join(data_dir, f)
+            for f in os.listdir(data_dir)
+            if f.endswith(".txt") and os.path.getsize(os.path.join(data_dir, f)) > 0
+        ]
 
     if not txt_files:
         raise FileNotFoundError(f"no .txt files found in {data_dir}")
